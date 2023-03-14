@@ -1,4 +1,4 @@
-package com.local.travelbook.model.roomDb
+package com.local.travelbook.roomDb
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
