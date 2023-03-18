@@ -14,6 +14,8 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.internal.disposables.ArrayCompositeDisposable
 import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.*
+import okhttp3.Dispatcher
 import retrofit2.*
 import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.converter.gson.GsonConverterFactory
@@ -25,6 +27,11 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
     private var cryptoModels: List<CryptoModel>? = null
     private var recyclerViewAdapter: RecyclerViewAdapter? = null
     private var compositeDisposable: CompositeDisposable? = null
+    private var job : Job? = null
+
+    val exceptionHandler = CoroutineExceptionHandler { coroutineContext, throwable ->
+        println(throwable.localizedMessage)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,11 +55,28 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
             .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
             .build().create(CryptoAPI::class.java)
 
+
+        job = CoroutineScope(Dispatchers.IO).launch {
+            val response = retrofit.getData()
+
+            withContext(Dispatchers.Main) {
+                if(response.isSuccessful) {
+                    response.body()?.let {
+                        cryptoModels = ArrayList(it)
+                        cryptoModels?.let {
+                            recyclerViewAdapter = RecyclerViewAdapter(it, this@MainActivity)
+                            binding.recyclerView.adapter = recyclerViewAdapter
+                        }
+                    }
+                }
+            }
+        }
+        /*
         compositeDisposable?.add(retrofit.getData()
             .subscribeOn(Schedulers.io())
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(this::handleResponse))
-        /*
+
         val service = retrofit.create(CryptoAPI::class.java)
         val call = service.getData()
 
@@ -89,5 +113,10 @@ class MainActivity : AppCompatActivity(), RecyclerViewAdapter.Listener {
 
     override fun onItemClick(cryptoModel: CryptoModel) {
         Toast.makeText(this, "Clicked : ${cryptoModel.currency}", Toast.LENGTH_LONG).show()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        job!!.cancel()
     }
 }
